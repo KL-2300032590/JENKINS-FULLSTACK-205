@@ -1,0 +1,81 @@
+pipeline {
+    agent any
+
+    stages {
+
+        // ===== FRONTEND BUILD =====
+        stage('Build Frontend') {
+            steps {
+                dir('STUDENTAPI-REACT') {
+                    sh 'npm install'
+                    sh 'npm run build'
+                }
+            }
+        }
+
+        // ===== FRONTEND DEPLOY =====
+        stage('Deploy Frontend to Tomcat') {
+            steps {
+                sh '''
+                TOMCAT_DIR="/Users/pardhasaradhireddy/apache-tomcat-10.1.43/webapps/reactstudentapi"
+                
+                # Stop Tomcat
+                /Users/pardhasaradhireddy/apache-tomcat-10.1.43/bin/shutdown.sh || true
+                
+                # Remove old deployment
+                rm -rf "$TOMCAT_DIR"
+                
+                # Create fresh directory
+                mkdir -p "$TOMCAT_DIR"
+                
+                # Copy build output
+                cp -R STUDENTAPI-REACT/dist/* "$TOMCAT_DIR/"
+                
+                # Start Tomcat
+                /Users/pardhasaradhireddy/apache-tomcat-10.1.43/bin/startup.sh
+                '''
+            }
+        }
+
+        // ===== BACKEND BUILD =====
+        stage('Build Backend') {
+            steps {
+                dir('STUDENTAPI-SPRINGBOOT') {
+                    sh 'mvn clean package'
+                }
+            }
+        }
+
+        // ===== BACKEND DEPLOY =====
+        stage('Deploy Backend to Tomcat') {
+            steps {
+                sh '''
+                TOMCAT_WEBAPPS="/Users/pardhasaradhireddy/apache-tomcat-10.1.43/webapps"
+                WAR_FILE="springbootstudentapi.war"
+
+                # Stop Tomcat
+                /Users/pardhasaradhireddy/apache-tomcat-10.1.43/bin/shutdown.sh || true
+
+                # Remove old deployment
+                rm -f "$TOMCAT_WEBAPPS/$WAR_FILE"
+                rm -rf "$TOMCAT_WEBAPPS/springbootstudentapi"
+
+                # Copy new WAR
+                cp STUDENTAPI-SPRINGBOOT/target/*.war "$TOMCAT_WEBAPPS/"
+
+                # Start Tomcat
+                /Users/pardhasaradhireddy/apache-tomcat-10.1.43/bin/startup.sh
+                '''
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Deployment Successful!'
+        }
+        failure {
+            echo 'Pipeline Failed.'
+        }
+    }
+}
