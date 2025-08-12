@@ -53,7 +53,19 @@ pipeline {
         stage('Build Backend') {
             steps {
                 dir('STUDENTAPI-SPRINGBOOT') {
-                    sh 'mvn clean package'
+                    sh '''
+                    #!/bin/bash
+
+                    # Manually add Maven to PATH
+                    export PATH=$PATH:/opt/homebrew/bin
+
+                    # Sanity check
+                    echo "Using Maven: $(which mvn)"
+                    mvn -v || { echo "Maven not found"; exit 1; }
+
+                    # Build backend
+                    mvn clean package || { echo "Maven build failed"; exit 1; }
+                    '''
                 }
             }
         }
