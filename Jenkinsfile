@@ -1,6 +1,11 @@
 pipeline {
     agent any
 
+    environment {
+        PATH = "/opt/homebrew/bin:/Users/pardhasaradhireddy/maven/bin:${env.PATH}"
+        TOMCAT_HOME = "/Users/pardhasaradhireddy/apache-tomcat-10.1.43"
+    }
+
     stages {
 
         // ===== FRONTEND BUILD =====
@@ -8,18 +13,8 @@ pipeline {
             steps {
                 dir('STUDENTAPI-REACT') {
                     sh '''
-                    #!/bin/bash
-
-                    # Manually add Node/npm to PATH
-                    export PATH=$PATH:/opt/homebrew/bin
-
-                    # Sanity check
-                    echo "Using Node: $(which node)"
-                    echo "Using npm: $(which npm)"
-
-                    # Build steps
-                    npm install || { echo "npm install failed"; exit 1; }
-                    npm run build || { echo "npm run build failed"; exit 1; }
+                    npm install
+                    npm run build
                     '''
                 }
             }
@@ -29,22 +24,21 @@ pipeline {
         stage('Deploy Frontend to Tomcat') {
             steps {
                 sh '''
-                TOMCAT_DIR="/Users/pardhasaradhireddy/apache-tomcat-10.1.43/webapps/reactstudentapi"
-                
-                # Stop Tomcat
-                /Users/pardhasaradhireddy/apache-tomcat-10.1.43/bin/shutdown.sh || true
-                
-                # Remove old deployment
-                rm -rf "$TOMCAT_DIR"
-                
-                # Create fresh directory
-                mkdir -p "$TOMCAT_DIR"
-                
-                # Copy build output
-                cp -R STUDENTAPI-REACT/dist/* "$TOMCAT_DIR/"
-                
-                # Start Tomcat
-                /Users/pardhasaradhireddy/apache-tomcat-10.1.43/bin/startup.sh
+                FRONTEND_PATH="$TOMCAT_HOME/webapps/reactstudentapi"
+
+                # Remove old frontend
+                rm -rf "$FRONTEND_PATH"
+                mkdir -p "$FRONTEND_PATH"
+
+                # Detect build output folder
+                if [ -d "STUDENTAPI-REACT/build" ]; then
+                    cp -R STUDENTAPI-REACT/build/* "$FRONTEND_PATH/"
+                elif [ -d "STUDENTAPI-REACT/dist" ]; then
+                    cp -R STUDENTAPI-REACT/dist/* "$FRONTEND_PATH/"
+                else
+                    echo "No frontend build output found!"
+                    exit 1
+                fi
                 '''
             }
         }
@@ -54,17 +48,7 @@ pipeline {
             steps {
                 dir('STUDENTAPI-SPRINGBOOT') {
                     sh '''
-                    #!/bin/bash
-
-                    # Manually add Maven to PATH
-                    export PATH=$PATH:/Users/pardhasaradhireddy/maven/bin
-
-                    # Sanity check
-                    echo "Using Maven: $(which mvn)"
-                    mvn -v || { echo "Maven not found"; exit 1; }
-
-                    # Build backend
-                    mvn clean package || { echo "Maven build failed"; exit 1; }
+                    mvn clean package
                     '''
                 }
             }
@@ -74,21 +58,23 @@ pipeline {
         stage('Deploy Backend to Tomcat') {
             steps {
                 sh '''
-                TOMCAT_WEBAPPS="/Users/pardhasaradhireddy/apache-tomcat-10.1.43/webapps"
-                WAR_FILE="springbootstudentapi.war"
+                WEBAPPS_PATH="$TOMCAT_HOME/webapps"
 
-                # Stop Tomcat
-                /Users/pardhasaradhireddy/apache-tomcat-10.1.43/bin/shutdown.sh || true
+                rm -f "$WEBAPPS_PATH/springbootstudentapi.war"
+                rm -rf "$WEBAPPS_PATH/springbootstudentapi"
 
-                # Remove old deployment
-                rm -f "$TOMCAT_WEBAPPS/$WAR_FILE"
-                rm -rf "$TOMCAT_WEBAPPS/springbootstudentapi"
+                cp STUDENTAPI-SPRINGBOOT/target/*.war "$WEBAPPS_PATH/"
+                '''
+            }
+        }
 
-                # Copy new WAR
-                cp STUDENTAPI-SPRINGBOOT/target/*.war "$TOMCAT_WEBAPPS/"
-
-                # Start Tomcat
-                /Users/pardhasaradhireddy/apache-tomcat-10.1.43/bin/startup.sh
+        // ===== RESTART TOMCAT =====
+        stage('Restart Tomcat') {
+            steps {
+                sh '''
+                $TOMCAT_HOME/bin/shutdown.sh || true
+                sleep 3
+                $TOMCAT_HOME/bin/startup.sh
                 '''
             }
         }
