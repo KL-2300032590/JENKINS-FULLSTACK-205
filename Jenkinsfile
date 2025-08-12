@@ -7,8 +7,20 @@ pipeline {
         stage('Build Frontend') {
             steps {
                 dir('STUDENTAPI-REACT') {
-                    sh 'npm install'
-                    sh 'npm run build'
+                    sh '''
+                    #!/bin/bash
+
+                    # Manually add Node/npm to PATH
+                    export PATH=$PATH:/opt/homebrew/bin
+
+                    # Sanity check
+                    echo "Using Node: $(which node)"
+                    echo "Using npm: $(which npm)"
+
+                    # Build steps
+                    npm install || { echo "npm install failed"; exit 1; }
+                    npm run build || { echo "npm run build failed"; exit 1; }
+                    '''
                 }
             }
         }
