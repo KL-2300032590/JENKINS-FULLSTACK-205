@@ -57,7 +57,7 @@ pipeline {
                     #!/bin/bash
 
                     # Manually add Maven to PATH
-                    export PATH=$PATH:/opt/homebrew/bin
+                    export PATH=$PATH:/Users/pardhasaradhireddy/maven/bin
 
                     # Sanity check
                     echo "Using Maven: $(which mvn)"
